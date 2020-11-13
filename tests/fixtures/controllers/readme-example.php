@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\NewPost;
 use App\Http\Requests\PostStoreRequest;
 use App\Jobs\SyncMedia;
-use App\Mail\ReviewNotification;
+use App\Mail\ReviewPost;
 use App\Post;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -29,9 +29,9 @@ class PostController extends Controller
      */
     public function store(PostStoreRequest $request)
     {
-        $post = Post::create($request->all());
+        $post = Post::create($request->validated());
 
-        Mail::to($post->author)->send(new ReviewNotification($post));
+        Mail::to($post->author->email)->send(new ReviewPost($post));
 
         SyncMedia::dispatch($post);
 

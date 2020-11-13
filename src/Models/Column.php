@@ -36,4 +36,30 @@ class Column
     {
         return $this->modifiers;
     }
+
+    public function isForeignKey()
+    {
+        return collect($this->modifiers())->filter(function ($modifier) {
+            return (is_array($modifier) && key($modifier) === 'foreign') || $modifier === 'foreign';
+        })->flatten()->first();
+    }
+
+    public function defaultValue()
+    {
+        return collect($this->modifiers())
+            ->collapse()
+            ->first(function ($value, $key) {
+                return $key === 'default';
+            });
+    }
+
+    public function isNullable()
+    {
+        return in_array('nullable', $this->modifiers);
+    }
+
+    public function isUnsigned()
+    {
+        return in_array('unsigned', $this->modifiers);
+    }
 }

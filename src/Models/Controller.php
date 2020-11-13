@@ -3,7 +3,6 @@
 
 namespace Blueprint\Models;
 
-
 use Illuminate\Support\Str;
 
 class Controller
@@ -11,10 +10,18 @@ class Controller
     /** @var array */
     public static $resourceMethods = ['index', 'create', 'store', 'edit', 'update', 'show', 'destroy'];
 
+    /** @var array  */
+    public static $apiResourceMethods = ['index', 'store', 'update', 'show', 'destroy'];
+
     /**
      * @var string
      */
     private $name;
+
+    /**
+     * @var string
+     */
+    private $namespace;
 
     /**
      * @var array
@@ -22,12 +29,18 @@ class Controller
     private $methods = [];
 
     /**
+     * @var bool
+     */
+    private $apiResource = false;
+
+    /**
      * Controller constructor.
      * @param $name
      */
     public function __construct(string $name)
     {
-        $this->name = $name;
+        $this->name = class_basename($name);
+        $this->namespace = trim(implode('\\', array_slice(explode('\\', str_replace('/', '\\', $name)), 0, -1)), '\\');
     }
 
     public function name(): string
@@ -38,6 +51,35 @@ class Controller
     public function className(): string
     {
         return $this->name() . (Str::endsWith($this->name(), 'Controller') ? '' : 'Controller');
+    }
+
+    public function namespace()
+    {
+        if (empty($this->namespace)) {
+            return '';
+        }
+
+        return $this->namespace;
+    }
+
+    public function fullyQualifiedNamespace()
+    {
+        $fqn = config('blueprint.namespace');
+
+        if (config('blueprint.controllers_namespace')) {
+            $fqn .= '\\' . config('blueprint.controllers_namespace');
+        }
+
+        if ($this->namespace) {
+            $fqn .= '\\' . $this->namespace;
+        }
+
+        return $fqn;
+    }
+
+    public function fullyQualifiedClassName()
+    {
+        return $this->fullyQualifiedNamespace() . '\\' . $this->className();
     }
 
     public function methods(): array
@@ -57,5 +99,21 @@ class Controller
         }
 
         return $this->name();
+    }
+
+    /**
+     * @param bool $apiResource
+     */
+    public function setApiResource(bool $apiResource)
+    {
+        $this->apiResource = $apiResource;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isApiResource(): bool
+    {
+        return $this->apiResource;
     }
 }

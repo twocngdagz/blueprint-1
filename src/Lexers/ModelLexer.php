@@ -4,10 +4,22 @@ namespace Blueprint\Lexers;
 
 use Blueprint\Contracts\Lexer;
 use Blueprint\Models\Column;
+use Blueprint\Models\Index;
 use Blueprint\Models\Model;
+use Illuminate\Support\Str;
 
 class ModelLexer implements Lexer
 {
+    private static $relationships = [
+        'belongsto' => 'belongsTo',
+        'hasone' => 'hasOne',
+        'hasmany' => 'hasMany',
+        'belongstomany' => 'belongsToMany',
+        'morphone' => 'morphOne',
+        'morphmany' => 'morphMany',
+        'morphto' => 'morphTo',
+    ];
+
     private static $dataTypes = [
         'bigincrements' => 'bigIncrements',
         'biginteger' => 'bigInteger',
@@ -80,20 +92,30 @@ class ModelLexer implements Lexer
         'usecurrent' => 'useCurrent',
         'always' => 'always',
         'unique' => 'unique',
+        'index' => 'index',
+        'primary' => 'primary',
+        'foreign' => 'foreign',
+        'ondelete' => 'onDelete',
+        'comment' => 'comment',
     ];
 
     public function analyze(array $tokens): array
     {
         $registry = [
-            'models' => []
+            'models' => [],
+            'cache' => [],
         ];
 
-        if (empty($tokens['models'])) {
-            return $registry;
+        if (!empty($tokens['models'])) {
+            foreach ($tokens['models'] as $name => $definition) {
+                $registry['models'][$name] = $this->buildModel($name, $definition);
+            }
         }
 
-        foreach ($tokens['models'] as $name => $definition) {
-            $registry['models'][$name] = $this->buildModel($name, $definition);
+        if (!empty($tokens['cache'])) {
+            foreach ($tokens['cache'] as $name => $definition) {
+                $registry['cache'][$name] = $this->buildModel($name, $definition);
+            }
         }
 
         return $registry;
@@ -102,6 +124,13 @@ class ModelLexer implements Lexer
     private function buildModel(string $name, array $columns)
     {
         $model = new Model($name);
+
+        if (isset($columns['id'])) {
+            if ($columns['id'] === false) {
+                $model->disablePrimaryKey();
+                unset($columns['id']);
+            }
+        }
 
         if (isset($columns['timestamps'])) {
             if ($columns['timestamps'] === false) {
@@ -122,7 +151,30 @@ class ModelLexer implements Lexer
             unset($columns['softdeletestz']);
         }
 
-        if (!isset($columns['id'])) {
+        if (isset($columns['relationships'])) {
+            if (is_array($columns['relationships'])) {
+                foreach ($columns['relationships'] as $type => $relationships) {
+                    foreach (explode(',', $relationships) as $reference) {
+                        $model->addRelationship(self::$relationships[strtolower($type)], trim($reference));
+
+                        if ($type === 'morphTo') {
+                            $model->setMorphTo(trim($reference));
+                        }
+                    }
+                }
+            }
+
+            unset($columns['relationships']);
+        }
+
+        if (isset($columns['indexes'])) {
+            foreach ($columns['indexes'] as $index) {
+                $model->addIndex(new Index(key($index), array_map('trim', explode(',', current($index)))));
+            }
+            unset($columns['indexes']);
+        }
+
+        if (!isset($columns['id']) && $model->usesPrimaryKey()) {
             $column = $this->buildColumn('id', 'id');
             $model->addColumn($column);
         }
@@ -130,6 +182,29 @@ class ModelLexer implements Lexer
         foreach ($columns as $name => $definition) {
             $column = $this->buildColumn($name, $definition);
             $model->addColumn($column);
+
+            $foreign = collect($column->modifiers())->filter(function ($modifier) {
+                return (is_array($modifier) && key($modifier) === 'foreign') || $modifier === 'foreign';
+            })->flatten()->first();
+
+            if ($column->name() !== 'id' && (in_array($column->dataType(), ['id', 'uuid']) || $foreign)) {
+                $reference = $column->name();
+
+                if ($foreign && $foreign !== 'foreign') {
+                    $table = $foreign;
+                    $key = 'id';
+
+                    if (Str::contains($foreign, '.')) {
+                        [$table, $key] = explode('.', $foreign);
+                    }
+
+                    $reference = Str::singular($table) . ($key === 'id' ? '' : '.' . $key) . ':' . $column->name();
+                } elseif ($column->attributes()) {
+                    $reference = $column->attributes()[0] . ':' . $column->name();
+                }
+
+                $model->addRelationship('belongsTo', $reference);
+            }
         }
 
         return $model;
@@ -137,10 +212,10 @@ class ModelLexer implements Lexer
 
     private function buildColumn(string $name, string $definition)
     {
-        $data_type = 'string';
+        $data_type = null;
         $modifiers = [];
 
-        $tokens = explode(' ', $definition);
+        $tokens = preg_split('#("|\').*?\1(*SKIP)(*FAIL)|\s+#', $definition);
         foreach ($tokens as $token) {
             $parts = explode(':', $token);
             $value = $parts[0];
@@ -155,17 +230,31 @@ class ModelLexer implements Lexer
                 $data_type = self::$dataTypes[strtolower($value)];
                 if (!empty($attributes)) {
                     $attributes = explode(',', $attributes);
+
+                    if ($data_type === 'enum') {
+                        $attributes = array_map(function ($attribute) {
+                            return trim($attribute, '"');
+                        }, $attributes);
+                    }
                 }
             }
 
             if (isset(self::$modifiers[strtolower($value)])) {
                 $modifierAttributes = $parts[1] ?? null;
-                if (empty($modifierAttributes)) {
+                if ($modifierAttributes === null) {
                     $modifiers[] = self::$modifiers[strtolower($value)];
                 } else {
                     $modifiers[] = [self::$modifiers[strtolower($value)] => $modifierAttributes];
                 }
             }
+        }
+
+        if (is_null($data_type)) {
+            $is_foreign_key = collect($modifiers)->contains(function ($modifier) {
+                return (is_array($modifier) && key($modifier) === 'foreign') || $modifier === 'foreign';
+            });
+
+            $data_type = $is_foreign_key ? 'id' : 'string';
         }
 
         return new Column($name, $data_type, $modifiers, $attributes ?? []);

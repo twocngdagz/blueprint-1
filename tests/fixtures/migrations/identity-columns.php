@@ -14,7 +14,7 @@ class CreateRelationshipsTable extends Migration
     public function up()
     {
         Schema::create('relationships', function (Blueprint $table) {
-            $table->increments('id');
+            $table->id();
             $table->unsignedBigInteger('post_id');
             $table->unsignedBigInteger('another');
         });

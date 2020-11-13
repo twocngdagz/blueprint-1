@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Translators;
 
+use Tests\TestCase;
 use Blueprint\Models\Column;
 use Blueprint\Translators\Rules;
-use Tests\TestCase;
 
 /**
  * @see Rules
@@ -98,6 +98,36 @@ class RulesTest extends TestCase
 
     /**
      * @test
+     */
+    public function forColumn_return_exists_rule_for_id_column()
+    {
+        $column = new Column('user_id', 'id');
+
+        $this->assertContains('exists:users,id', Rules::fromColumn('context', $column));
+    }
+
+    /**
+     * @test
+     */
+    public function forColumn_return_exists_rule_id_column_with_attribute()
+    {
+        $column = new Column('author_id', 'id', [], ['user']);
+
+        $this->assertContains('exists:users,id', Rules::fromColumn('context', $column));
+    }
+
+    /**
+     * @test
+     */
+    public function forColumn_return_exists_rule_for_the_unique_modifier()
+    {
+        $column = new Column('column', 'string', ['unique']);
+
+        $this->assertContains('unique:connection.table,column', Rules::fromColumn('connection.table', $column));
+    }
+
+    /**
+     * @test
      * @dataProvider relationshipColumnProvider
      */
     public function forColumn_returns_exists_rule_for_foreign_keys($name, $table)
@@ -151,11 +181,63 @@ class RulesTest extends TestCase
     /**
      * @test
      */
-    public function forColumn_return_exists_rule_for_the_unique_modifier()
+    public function forColumn_return_json_rule_for_the_json_type()
     {
-        $column = new Column('column', 'string', ['unique']);
+        $column = new Column('column', 'json');
 
-        $this->assertContains('unique:connection.table,column', Rules::fromColumn('connection.table', $column));
+        $this->assertContains('json', Rules::fromColumn('context', $column));
+    }
+
+    /**
+    * @test
+    */
+    public function forColumn_does_not_return_between_rule_for_decimal_without_precion_and_scale()
+    {
+        $column = new Column('column', "decimal");
+
+        $this->assertNotContains("between", Rules::fromColumn('context', $column));
+    }
+
+    /**
+    * @test
+    */
+    public function forColumn_does_not_return_between_rule_for_unsigned_decimal_without_precion_and_scale()
+    {
+        $unsignedBeforeDecimalColumn = new Column('column', "unsigned decimal");
+
+        $this->assertNotContains("between", Rules::fromColumn('context', $unsignedBeforeDecimalColumn));
+
+        $unsignedAfterDecimalColumn = new Column('column', "decimal unsigned");
+
+        $this->assertNotContains("between", Rules::fromColumn('context', $unsignedAfterDecimalColumn));
+    }
+
+    /**
+    * @test
+     * @dataProvider noBetweenRuleDataProvider
+    */
+    public function forColumn_does_not_return_between_rule_for_double_without_precion_and_scale($column)
+    {
+        $this->assertNotContains("between", Rules::fromColumn('context', $column));
+    }
+
+    /**
+     * @test
+     * @dataProvider noBetweenRuleDataProvider
+     */
+    public function forColumn_does_not_return_between_rule($column)
+    {
+        $this->assertNotContains("between", Rules::fromColumn('context', $column));
+    }
+
+    /**
+    * @test
+    * @dataProvider betweenRuleDataProvider
+    */
+    public function forColumn_returns_between_rule($column, $interval)
+    {
+        $fromColumn = Rules::fromColumn('context', $column);
+        $this->assertContains("between:$interval", $fromColumn);
     }
 
     public function stringDataTypesProvider()
@@ -163,7 +245,7 @@ class RulesTest extends TestCase
         return [
             ['string'],
             ['char'],
-            ['text']
+            ['text'],
         ];
     }
 
@@ -212,7 +294,42 @@ class RulesTest extends TestCase
         return [
             ['test_id', 'tests'],
             ['user_id', 'users'],
-            ['sheep_id', 'sheep']
+            ['sheep_id', 'sheep'],
+        ];
+    }
+
+    public function noBetweenRuleDataProvider()
+    {
+        return [
+            [new Column('column', 'float')],
+            [new Column('column', 'double')],
+            [new Column('column', 'decimal')],
+            [new Column('column', 'unsignedDecimal')],
+            [new Column('column', 'float', ['unsigned'])],
+            [new Column('column', 'double', ['unsigned'])],
+            [new Column('column', 'decimal', ['unsigned'])],
+        ];
+    }
+
+    public function betweenRuleDataProvider()
+    {
+        return [
+            [new Column('column', 'double', [], [8, 0]), '-99999999,99999999'],
+            [new Column('column', 'double', [], [10, 1]), '-999999999.9,999999999.9'],
+            [new Column('column', 'double', [], [10, 2]), '-99999999.99,99999999.99'],
+            [new Column('column', 'decimal', [], [10, 3]), '-9999999.999,9999999.999'],
+            [new Column('column', 'decimal', [], [10, 4]), '-999999.9999,999999.9999'],
+            [new Column('column', 'decimal', [], [10, 5]), '-99999.99999,99999.99999'],
+            [new Column('column', 'float', [], [10, 6]), '-9999.999999,9999.999999'],
+            [new Column('column', 'float', [], [10, 7]), '-999.9999999,999.9999999'],
+            [new Column('column', 'float', [], [10, 8]), '-99.99999999,99.99999999'],
+            [new Column('column', 'double', [], [4, 4]), '-0.9999,0.9999'],
+            [new Column('column', 'unsignedDecimal', [], [10, 0]), '0,9999999999'],
+            [new Column('column', 'unsignedDecimal', [], [8, 1]), '0,9999999.9'],
+            [new Column('column', 'unsignedDecimal', [], [6, 2]), '0,9999.99'],
+            [new Column('column', 'decimal', ['unsigned'], [10, 3]), '0,9999999.999'],
+            [new Column('column', 'double', ['unsigned'], [10, 4]), '0,999999.9999'],
+            [new Column('column', 'float', ['unsigned'], [10, 5]), '0,99999.99999'],
         ];
     }
 }

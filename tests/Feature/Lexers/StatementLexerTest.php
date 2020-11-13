@@ -9,6 +9,8 @@ use Blueprint\Models\Statements\FireStatement;
 use Blueprint\Models\Statements\QueryStatement;
 use Blueprint\Models\Statements\RedirectStatement;
 use Blueprint\Models\Statements\RenderStatement;
+use Blueprint\Models\Statements\ResourceStatement;
+use Blueprint\Models\Statements\RespondStatement;
 use Blueprint\Models\Statements\SendStatement;
 use Blueprint\Models\Statements\SessionStatement;
 use Blueprint\Models\Statements\ValidateStatement;
@@ -153,7 +155,7 @@ class StatementLexerTest extends TestCase
     public function it_returns_a_send_statement()
     {
         $tokens = [
-            'send' => 'ReviewMail'
+            'send' => 'ReviewPost'
         ];
 
         $actual = $this->subject->analyze($tokens);
@@ -161,9 +163,10 @@ class StatementLexerTest extends TestCase
         $this->assertCount(1, $actual);
         $this->assertInstanceOf(SendStatement::class, $actual[0]);
 
-        $this->assertEquals('ReviewMail', $actual[0]->mail());
+        $this->assertEquals('ReviewPost', $actual[0]->mail());
         $this->assertNull($actual[0]->to());
         $this->assertSame([], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_MAIL, $actual[0]->type());
     }
 
     /**
@@ -172,7 +175,7 @@ class StatementLexerTest extends TestCase
     public function it_returns_a_send_statement_to_only()
     {
         $tokens = [
-            'send' => 'ReviewMail to:post.author'
+            'send' => 'ReviewPost to:post.author'
         ];
 
         $actual = $this->subject->analyze($tokens);
@@ -180,9 +183,10 @@ class StatementLexerTest extends TestCase
         $this->assertCount(1, $actual);
         $this->assertInstanceOf(SendStatement::class, $actual[0]);
 
-        $this->assertEquals('ReviewMail', $actual[0]->mail());
+        $this->assertEquals('ReviewPost', $actual[0]->mail());
         $this->assertEquals('post.author', $actual[0]->to());
         $this->assertSame([], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_MAIL, $actual[0]->type());
     }
 
     /**
@@ -191,7 +195,7 @@ class StatementLexerTest extends TestCase
     public function it_returns_a_send_statement_with_only()
     {
         $tokens = [
-            'send' => 'ReviewMail with:foo, bar, baz'
+            'send' => 'ReviewPost with:foo, bar, baz'
         ];
 
         $actual = $this->subject->analyze($tokens);
@@ -199,9 +203,10 @@ class StatementLexerTest extends TestCase
         $this->assertCount(1, $actual);
         $this->assertInstanceOf(SendStatement::class, $actual[0]);
 
-        $this->assertEquals('ReviewMail', $actual[0]->mail());
+        $this->assertEquals('ReviewPost', $actual[0]->mail());
         $this->assertNull($actual[0]->to());
         $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_MAIL, $actual[0]->type());
     }
 
     /**
@@ -210,7 +215,7 @@ class StatementLexerTest extends TestCase
     public function it_returns_a_send_statement_to_and_with()
     {
         $tokens = [
-            'send' => 'ReviewMail to:post.author with:foo, bar, baz'
+            'send' => 'ReviewPost to:post.author with:foo, bar, baz'
         ];
 
         $actual = $this->subject->analyze($tokens);
@@ -218,9 +223,170 @@ class StatementLexerTest extends TestCase
         $this->assertCount(1, $actual);
         $this->assertInstanceOf(SendStatement::class, $actual[0]);
 
-        $this->assertEquals('ReviewMail', $actual[0]->mail());
+        $this->assertEquals('ReviewPost', $actual[0]->mail());
         $this->assertEquals('post.author', $actual[0]->to());
         $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_MAIL, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_type_notification_facade()
+    {
+        $tokens = [
+            'send' => 'ReviewNotification'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertNull($actual[0]->to());
+        $this->assertSame([], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_FACADE, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_to_only_type_notification_facade()
+    {
+        $tokens = [
+            'send' => 'ReviewNotification to:post.author'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertEquals('post.author', $actual[0]->to());
+        $this->assertSame([], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_FACADE, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_with_only_type_notification_facade()
+    {
+        $tokens = [
+            'send' => 'ReviewNotification with:foo, bar, baz'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertNull($actual[0]->to());
+        $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_FACADE, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_to_and_with_type_notification_facade()
+    {
+        $tokens = [
+            'send' => 'ReviewNotification to:post.author with:foo, bar, baz'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertEquals('post.author', $actual[0]->to());
+        $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_FACADE, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_with_type_notification_model()
+    {
+        $tokens = [
+            'notify' => 'user ReviewNotification'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertEquals('user', $actual[0]->to());
+        $this->assertSame([], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_MODEL, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_to_only_type_notification_model()
+    {
+        $tokens = [
+            'notify' => 'post.author ReviewNotification'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertEquals('post.author', $actual[0]->to());
+        $this->assertSame([], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_MODEL, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_with_only_type_notification_model()
+    {
+        $tokens = [
+            'notify' => 'user ReviewNotification with:foo, bar, baz'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertEquals('user', $actual[0]->to());
+        $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_MODEL, $actual[0]->type());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_send_statement_to_and_with_type_notification_model()
+    {
+        $tokens = [
+            'notify' => 'post.author ReviewNotification with:foo, bar, baz'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(SendStatement::class, $actual[0]);
+
+        $this->assertEquals('ReviewNotification', $actual[0]->mail());
+        $this->assertEquals('post.author', $actual[0]->to());
+        $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
+        $this->assertEquals(SendStatement::TYPE_NOTIFICATION_WITH_MODEL, $actual[0]->type());
     }
 
     /**
@@ -257,6 +423,25 @@ class StatementLexerTest extends TestCase
 
         $this->assertSame($operation, $actual[0]->operation());
         $this->assertSame($reference, $actual[0]->reference());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_an_update_eloquent_statement_with_columns()
+    {
+        $tokens = [
+            'update' => 'name, title, age'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(EloquentStatement::class, $actual[0]);
+
+        $this->assertSame('update', $actual[0]->operation());
+        $this->assertNull($actual[0]->reference());
+        $this->assertSame(['name', 'title', 'age'], $actual[0]->columns());
     }
 
     /**
@@ -314,13 +499,40 @@ class StatementLexerTest extends TestCase
         $this->assertEquals(['foo', 'bar', 'baz'], $actual[0]->data());
     }
 
-    public function eloquentTokensProvider()
+    /**
+     * @test
+     */
+    public function it_returns_a_response_statement_with_status_code()
     {
-        return [
-            ['save', 'post'],
-            ['update', 'post'],
-            ['delete', 'post.id'],
+        $tokens = [
+            'respond' => '204'
         ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(RespondStatement::class, $actual[0]);
+
+        $this->assertEquals(204, $actual[0]->status());
+        $this->assertNull($actual[0]->content());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_response_statement_with_content()
+    {
+        $tokens = [
+            'respond' => 'post'
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(RespondStatement::class, $actual[0]);
+
+        $this->assertEquals(200, $actual[0]->status());
+        $this->assertEquals('post', $actual[0]->content());
     }
 
     /**
@@ -437,11 +649,80 @@ class StatementLexerTest extends TestCase
         $this->assertNull($actual[0]->model());
     }
 
+    /**
+     * @test
+     */
+    public function it_returns_a_resource_statement()
+    {
+        $tokens = [
+            'resource' => 'user',
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(ResourceStatement::class, $actual[0]);
+
+        $this->assertEquals('UserResource', $actual[0]->name());
+        $this->assertEquals('user', $actual[0]->reference());
+        $this->assertFalse($actual[0]->collection());
+        $this->assertFalse($actual[0]->paginate());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_resource_collection_statement()
+    {
+        $tokens = [
+            'resource' => 'collection:users',
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(ResourceStatement::class, $actual[0]);
+
+        $this->assertEquals('UserCollection', $actual[0]->name());
+        $this->assertEquals('users', $actual[0]->reference());
+        $this->assertTrue($actual[0]->collection());
+        $this->assertFalse($actual[0]->paginate());
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_a_resource_collection_statement_with_pagination()
+    {
+        $tokens = [
+            'resource' => 'paginate:users',
+        ];
+
+        $actual = $this->subject->analyze($tokens);
+
+        $this->assertCount(1, $actual);
+        $this->assertInstanceOf(ResourceStatement::class, $actual[0]);
+
+        $this->assertEquals('UserCollection', $actual[0]->name());
+        $this->assertEquals('users', $actual[0]->reference());
+        $this->assertTrue($actual[0]->collection());
+        $this->assertTrue($actual[0]->paginate());
+    }
+
     public function sessionTokensProvider()
     {
         return [
             ['flash', 'post.title'],
             ['store', 'post.id'],
+        ];
+    }
+
+    public function eloquentTokensProvider()
+    {
+        return [
+            ['save', 'post'],
+            ['update', 'post'],
+            ['delete', 'post.id'],
         ];
     }
 }

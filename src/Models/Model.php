@@ -7,21 +7,57 @@ use Illuminate\Support\Str;
 class Model
 {
     private $name;
+    private $namespace;
+    private $primaryKey = 'id';
     private $timestamps = 'timestamps';
     private $softDeletes = false;
+    private $morphTo;
     private $columns = [];
+    private $relationships = [];
+    private $pivotTables = [];
+    private $indexes = [];
 
     /**
      * @param $name
      */
     public function __construct($name)
     {
-        $this->name = $name;
+        $this->name = class_basename($name);
+        $this->namespace = trim(implode('\\', array_slice(explode('\\', str_replace('/', '\\', $name)), 0, -1)), '\\');
     }
 
     public function name(): string
     {
         return Str::studly($this->name);
+    }
+
+    public function namespace()
+    {
+        if (empty($this->namespace)) {
+            return '';
+        }
+
+        return $this->namespace;
+    }
+
+    public function fullyQualifiedNamespace()
+    {
+        $fqn = config('blueprint.namespace');
+
+        if (config('blueprint.models_namespace')) {
+            $fqn .= '\\' . config('blueprint.models_namespace');
+        }
+
+        if ($this->namespace) {
+            $fqn .= '\\' . $this->namespace;
+        }
+
+        return $fqn;
+    }
+
+    public function fullyQualifiedClassName()
+    {
+        return $this->fullyQualifiedNamespace() . '\\' . $this->name;
     }
 
     public function addColumn(Column $column)
@@ -34,9 +70,24 @@ class Model
         return $this->columns;
     }
 
+    public function relationships(): array
+    {
+        return $this->relationships;
+    }
+
     public function primaryKey()
     {
-        return 'id';
+        return $this->primaryKey;
+    }
+
+    public function usesPrimaryKey()
+    {
+        return $this->primaryKey !== false;
+    }
+
+    public function disablePrimaryKey()
+    {
+        $this->primaryKey = false;
     }
 
     public function tableName()
@@ -87,5 +138,50 @@ class Model
     public function column(string $name)
     {
         return $this->columns[$name];
+    }
+
+    public function addRelationship(string $type, string $reference)
+    {
+        if (!isset($this->relationships[$type])) {
+            $this->relationships[$type] = [];
+        }
+
+        if ($type === 'belongsToMany') {
+            $this->addPivotTable($reference);
+        }
+
+        $this->relationships[$type][] = $reference;
+    }
+
+    public function addPivotTable(string $reference)
+    {
+        $segments = [$this->name(), class_basename($reference)];
+        sort($segments);
+        $this->pivotTables[] = $segments;
+    }
+
+    public function indexes(): array
+    {
+        return $this->indexes;
+    }
+
+    public function addIndex(Index $index)
+    {
+        $this->indexes[] = $index;
+    }
+
+    public function pivotTables(): array
+    {
+        return $this->pivotTables;
+    }
+
+    public function setMorphTo(string $reference)
+    {
+        $this->morphTo = $reference;
+    }
+
+    public function morphTo(): ?string
+    {
+        return $this->morphTo;
     }
 }

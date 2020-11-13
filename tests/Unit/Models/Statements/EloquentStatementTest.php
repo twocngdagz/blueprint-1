@@ -1,9 +1,9 @@
 <?php
 
-namespace Tests\Feature\Generators;
+namespace Tests\Unit\Models\Statements;
 
 use Blueprint\Models\Statements\EloquentStatement;
-use Tests\TestCase;
+use PHPUnit\Framework\TestCase;
 
 /**
  * @see EloquentStatement
@@ -48,6 +48,36 @@ class EloquentStatementTest extends TestCase
         $subject = new EloquentStatement('save', 'Post');
 
         $this->assertEquals('$post = Post::create($request->all());', $subject->output('', 'store'));
+    }
+
+    /**
+     * @test
+     */
+    public function output_generates_code_for_save_using_create_when_validation_is_used()
+    {
+        $subject = new EloquentStatement('save', 'Post');
+
+        $this->assertEquals('$post = Post::create($request->validated());', $subject->output('', 'store', true));
+    }
+
+    /**
+     * @test
+     */
+    public function output_generates_code_for_update_using_model()
+    {
+        $subject = new EloquentStatement('update', 'post');
+
+        $this->assertEquals('$post->update([]);', $subject->output('', ''));
+    }
+
+    /**
+     * @test
+     */
+    public function output_generates_code_for_update_using_column_list()
+    {
+        $subject = new EloquentStatement('update', null, ['name', 'title', 'age']);
+
+        $this->assertEquals('$user->update([\'name\' => $name, \'title\' => $title, \'age\' => $age]);', $subject->output('User', ''));
     }
 
     /**
